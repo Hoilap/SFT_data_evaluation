@@ -19,7 +19,7 @@ class EvaluationData(models.Model):
 class Score(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     sft = models.ForeignKey(EvaluationData, on_delete=models.CASCADE)
-    score = models.IntegerField(null=True, blank=True)
+    score = models.IntegerField(null=True, blank=True, default=-1)
     compare_id = models.IntegerField(null=True, blank=True)
     compare_result = models.CharField(max_length=16, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

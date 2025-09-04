@@ -1,6 +1,9 @@
 # --- Gradio Tab Functions ---
 
 from utils import *
+from data_labelling import *
+from label.models import EvaluationData #用Django ORM操作 evaluation_data 表
+from data_import import *
 import gradio as gr
 # 单条评分Tab
 score_options = [1, 2, 3, 4, 5]
@@ -40,7 +43,6 @@ def submit_score(idx, username, score):
 # 两两对比Tab
 def get_compare_pair(username):
     try:
-        from label.models import EvaluationData #用Django ORM操作 evaluation_data 表
         # 随机获取一条SFTData
         row = EvaluationData.objects.order_by('?').first()
         print(row)
@@ -77,6 +79,47 @@ def get_compare_pair(username):
     except Exception as e:
         return (f'数据库查询异常: {e}', '', '', '', '', '', gr.Dropdown(choices=[]), None, None)
 
+def show_by_index(idx):
+    total = get_total_count()
+    # 统一类型并做边界处理
+    try:
+        idx = int(idx)
+    except Exception:
+        idx = 0
+
+    # 数据库为空 -> 在前端显示错误提示
+    if total == 0:
+        # 在 Gradio 前端弹出错误，不更新输出
+        raise gr.Error("数据库中暂无数据，请先在“数据导入”页导入文件。")
+
+    # 将索引限制在 [0, total-1]
+    if idx < 0:
+        idx = 0
+    if idx >= total:
+        idx = total - 1
+
+    row = EvaluationData.objects.all()[idx]
+    system_prompt = getattr(row, 'system_prompt', '')
+    full_instruction = getattr(row, 'instruction', '')
+    output_1 = getattr(row, 'output_1', '')
+    output_2 = getattr(row, 'output_2', '')
+    ground_truth = getattr(row, 'ground_truth', '')
+    blocks = extract_instruction_blocks(full_instruction)
+    instruction = blocks[0] if blocks else ''
+    data_json_val = blocks[1] if len(blocks) > 1 else {}
+    shared_context = (
+        f"___\n**SYSTEM PROMPT**\n___\n{system_prompt}\n\n"
+        f"___\n**INSTRUCTION**\n___\n{instruction}"
+    )
+    think_a, out_a = split_output(output_1)
+    think_b, out_b = split_output(output_2)
+    think_gt, out_gt = split_output(ground_truth)
+    return (
+        idx, shared_context, data_json_val,
+        think_a, out_a,
+        safe_json_loads(think_b), safe_json_loads(out_b),
+        safe_json_loads(think_gt), safe_json_loads(out_gt), str(total))
+        #Markdown 组件只能接收字符串类型，滑块组件只能接受int类型。
 
 def submit_compare(username, result, idx_a):
     ...
