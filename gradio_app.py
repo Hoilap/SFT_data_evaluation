@@ -46,24 +46,36 @@ css_code = """
 with gr.Blocks(title="SFT数据标注与评估平台", css=css_code) as demo:
     gr.Markdown("# SFT数据标注与评估平台\n---")
 
+    # session state for memory data
+    memory_data_state = gr.State([])
+
     with gr.Tab("数据导入"):
         gr.Markdown("## 导入 SeedOss-Output.jsonl 和 SeedOss-SFT-Output.jsonl")
         file1_upload = gr.File(label="SeedOss-Output.jsonl 文件", file_types=[".jsonl"])
         file2_upload = gr.File(label="SeedOss-SFT-Output.jsonl 文件", file_types=[".jsonl"])
+        import_mode = gr.Radio(["数据库", "内存"], value="数据库", label="导入方式")
         import_status = gr.Markdown()
-        import_btn = gr.Button("导入数据到数据库")
-        import_btn.click(import_jsonl_to_db, [file1_upload, file2_upload], import_status)
+        import_btn = gr.Button("导入数据")
+
+
+        def import_data(file1, file2, mode):
+            if mode == "数据库":
+                msg = import_jsonl_to_db(file1.name, file2.name)
+                return gr.update(value=msg), []
+            else:
+                msg, memory_data = import_jsonl_to_session(file1, file2)
+                return msg, memory_data
+
+        import_btn.click(import_data, [file1_upload, file2_upload, import_mode], [import_status, memory_data_state])
 
     with gr.Tab("两两对比"):
-        # 进度条和切换按钮
+        data_source = gr.Radio(["数据库", "内存"], value="数据库", label="数据来源")
         with gr.Row():
-            
             progress_bar = gr.Slider(label="当前数据索引", minimum=0, maximum=get_total_count(), value=0, step=1)
             prev_btn = gr.Button("上一条")
             next_btn = gr.Button("下一条")
             total_count_md = gr.Markdown()
 
-        # 原有展示区
         with gr.Row():
             shared_info_box = gr.Textbox(
                 label="共享的 System Prompt 和 Instruction",
@@ -85,37 +97,34 @@ with gr.Blocks(title="SFT数据标注与评估平台", css=css_code) as demo:
                 thought_b = gr.JSON(label="B - Thought Process",show_label=True, container=True, elem_classes=["custom-fixed-height-markdown"])
                 json_b = gr.JSON(label="B - Answer",show_label=True, container=True, elem_classes=["custom-fixed-height-markdown"])
 
-
-        # 简化初始化：定义一个函数直接返回所有初始值
-        def init_view():
+        def init_view(data_source_val, memory_data):
             idx = 0
-            result = show_by_index(idx)
-            # result: idx, shared_context, data_json_val, think_a, out_a, safe_json_loads(think_b), safe_json_loads(out_b), safe_json_loads(think_gt), safe_json_loads(out_gt), total
-            #print(f"总数据条数: {result[-1]}")
+            if data_source_val == "数据库":
+                result = show_by_index(idx)
+            else:
+                result = show_by_index_memory(idx, memory_data)
             return result
-        demo.load(init_view, None, [progress_bar, shared_info_box, data_json, thought_a, json_a, thought_b, json_b, thought_gt, json_gt, total_count_md])
-        
+        demo.load(init_view, [data_source, memory_data_state], [progress_bar, shared_info_box, data_json, thought_a, json_a, thought_b, json_b, thought_gt, json_gt, total_count_md])
 
         def prev_idx(idx):
             return max(1, int(idx)-1)
         def next_idx(idx, total):
-            #print(f"当前数据索引: {idx}")
-            #print(f"总数据条数: {total}")
             return min(int(total), int(idx)+1)
 
-        #print(f"当前数据索引: {progress_bar.value}")
-        #print(f"总数据条数2: {total_count_md.value}")
-        prev_btn.click(
-            lambda idx: show_by_index(prev_idx(idx)),
-            [progress_bar],  # 这里传入当前进度条的值
-            [progress_bar, shared_info_box, data_json, thought_a, json_a, thought_b, json_b, thought_gt, json_gt, total_count_md]
-        )
-        next_btn.click(
-            lambda idx, total: show_by_index(next_idx(idx, total)),
-            [progress_bar, total_count_md],  # 这里传入当前 idx 和总数
-            [progress_bar, shared_info_box, data_json, thought_a, json_a, thought_b, json_b, thought_gt, json_gt, total_count_md]
-        )
+        def update_view(idx, total, data_source_val, memory_data):
+            if data_source_val == "数据库":
+                return show_by_index(prev_idx(idx))
+            else:
+                return show_by_index_memory(prev_idx(idx), memory_data)
 
+        def update_view_next(idx, total, data_source_val, memory_data):
+            if data_source_val == "数据库":
+                return show_by_index(next_idx(idx, total))
+            else:
+                return show_by_index_memory(next_idx(idx, total), memory_data)
+
+        prev_btn.click(update_view, [progress_bar, total_count_md, data_source, memory_data_state], [progress_bar, shared_info_box, data_json, thought_a, json_a, thought_b, json_b, thought_gt, json_gt, total_count_md])
+        next_btn.click(update_view_next, [progress_bar, total_count_md, data_source, memory_data_state], [progress_bar, shared_info_box, data_json, thought_a, json_a, thought_b, json_b, thought_gt, json_gt, total_count_md])
 
 
 if __name__ == "__main__":

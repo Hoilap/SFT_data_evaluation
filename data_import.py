@@ -2,7 +2,7 @@ import os
 import django
 import json
 from django.db import transaction
-
+import gradio as gr
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'data_labelling.settings')
 django.setup()
 
@@ -46,6 +46,38 @@ def delete_data():
 def get_total_count():
     return EvaluationData.objects.count()
 
+
+
+# --- 内存数据导入与读取辅助函数 ---
+def import_jsonl_to_session(file1, file2):
+    if not file1 or not file2:
+        return gr.update(value="请上传两个文件！"), None
+    try:
+        # 兼容 gr.File 返回 NamedString（有 .name 属性）
+        with open(file1.name, 'r', encoding='utf-8') as f1:
+            data1 = [json.loads(line) for line in f1 if line.strip()]
+        with open(file2.name, 'r', encoding='utf-8') as f2:
+            data2 = [json.loads(line) for line in f2 if line.strip()]
+        if len(data1) != len(data2):
+            return gr.update(value="两个文件行数不一致!"), None
+        memory_data = []
+        for d1, d2 in zip(data1, data2):
+            if d1['system_prompt'] != d2['system_prompt'] or d1['instruction'] != d2['instruction']:
+                return gr.update(value="system_prompt或instruction不一致!"), None
+            memory_data.append({
+                'system_prompt': d1['system_prompt'],
+                'instruction': d1['instruction'],
+                'output_1': d1['model_response'],
+                'output_2': d2['model_response'],
+                'ground_truth': d1.get('output', '')
+            })
+        return gr.update(value=f"导入成功！共导入 {len(memory_data)} 条数据 (内存模式)"), memory_data
+    except Exception as e:
+        return gr.update(value=f"导入失败: {e}"), None
+
+def get_total_count_memory(memory_data):
+    return len(memory_data) if memory_data else 0
+
 if __name__ == "__main__":
     file1 = './data/SeedOss-Output.jsonl'
     file2 = './data/SeedOss-SFT-Output.jsonl'
@@ -53,3 +85,5 @@ if __name__ == "__main__":
     # import_jsonl_to_db(file1, file2) #目前是直接在数据库后append
     delete_data()
     print(get_total_count())
+
+

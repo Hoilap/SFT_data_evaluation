@@ -121,6 +121,42 @@ def show_by_index(idx):
         safe_json_loads(think_gt), safe_json_loads(out_gt), str(total))
         #Markdown 组件只能接收字符串类型，滑块组件只能接受int类型。
 
+
+def show_by_index_memory(idx, memory_data):
+    total = get_total_count_memory(memory_data)
+    try:
+        idx = int(idx)
+    except Exception:
+        idx = 0
+    if total == 0:
+        raise gr.Error("内存中暂无数据，请先在‘数据导入’页导入文件。")
+    if idx < 0:
+        idx = 0
+    if idx >= total:
+        idx = total - 1
+    row = memory_data[idx]
+    system_prompt = row.get('system_prompt', '')
+    full_instruction = row.get('instruction', '')
+    output_1 = row.get('output_1', '')
+    output_2 = row.get('output_2', '')
+    ground_truth = row.get('ground_truth', '')
+    from gradio_tab_function import extract_instruction_blocks, split_output, safe_json_loads
+    blocks = extract_instruction_blocks(full_instruction)
+    instruction = blocks[0] if blocks else ''
+    data_json_val = blocks[1] if len(blocks) > 1 else {}
+    shared_context = (
+        f"___\n**SYSTEM PROMPT**\n___\n{system_prompt}\n\n"
+        f"___\n**INSTRUCTION**\n___\n{instruction}"
+    )
+    think_a, out_a = split_output(output_1)
+    think_b, out_b = split_output(output_2)
+    think_gt, out_gt = split_output(ground_truth)
+    return (
+        idx, shared_context, data_json_val,
+        think_a, out_a,
+        safe_json_loads(think_b), safe_json_loads(out_b),
+        safe_json_loads(think_gt), safe_json_loads(out_gt), str(total))
+
 def submit_compare(username, result, idx_a):
     ...
 '''    if not result:
