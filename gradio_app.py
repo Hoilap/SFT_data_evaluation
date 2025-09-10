@@ -54,6 +54,7 @@ with gr.Blocks(title="SFT数据标注与评估平台", css=css_code) as demo:
         file1_upload = gr.File(label="SeedOss-Output.jsonl 文件", file_types=[".jsonl"])
         file2_upload = gr.File(label="SeedOss-SFT-Output.jsonl 文件", file_types=[".jsonl"])
         import_mode = gr.Radio(["数据库", "内存"], value="数据库", label="导入方式")
+        gr.Markdown("数据库方式导入永久保存，内存方式导入仅在当前会话中有效。")
         import_status = gr.Markdown()
         import_btn = gr.Button("导入数据")
 
@@ -128,4 +129,4 @@ with gr.Blocks(title="SFT数据标注与评估平台", css=css_code) as demo:
 
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(server_name='0.0.0.0', share=True)
