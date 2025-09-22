@@ -5,6 +5,36 @@ from data_labelling import *
 from label.models import EvaluationData #用Django ORM操作 evaluation_data 表
 from data_import import *
 import gradio as gr
+
+
+
+
+from functools import wraps
+from django.db import close_old_connections
+
+def manage_db_connection(func):
+    """
+    一个装饰器，用于在函数执行前后管理 Django 数据库连接。
+    确保每次函数调用都使用有效的连接。
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # 1. 在执行函数之前，关闭所有可能因超时而失效的旧连接。
+        close_old_connections()
+        
+        try:
+            # 2. 执行原始函数 (例如，您的 Gradio 逻辑)
+            result = func(*args, **kwargs)
+        finally:
+            # 3. (可选但推荐) 函数执行完毕后，再次关闭连接。
+            # 这有助于及时释放连接资源，尤其是在高并发或长时间运行的应用中。
+            close_old_connections()
+            
+        return result
+    return wrapper
+
+
+
 # 单条评分Tab
 score_options = [1, 2, 3, 4, 5]
 def show_single(idx):
@@ -41,6 +71,7 @@ def submit_score(idx, username, score):
 
 
 # 两两对比Tab
+@manage_db_connection
 def get_compare_pair(username):
     try:
         # 随机获取一条SFTData
@@ -79,6 +110,8 @@ def get_compare_pair(username):
     except Exception as e:
         return (f'数据库查询异常: {e}', '', '', '', '', '', gr.Dropdown(choices=[]), None, None)
 
+
+@manage_db_connection
 def show_by_index(idx):
     total = get_total_count()
     # 统一类型并做边界处理
